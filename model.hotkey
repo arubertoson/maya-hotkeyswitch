@@ -1,0 +1,57 @@
+[
+    // Selection Masks
+    {"name": "mask_vertex", "key": ["1"], "cmd": "ahelper.set_component_mask('POINT')"},
+    {"name": "mask_edge", "key": ["2"], "cmd": "ahelper.set_component_mask('EDGE')"},
+    {"name": "mask_face", "key": ["3"], "cmd": "ahelper.set_component_mask('FACE')"},
+    {"name": "mask_map", "key": ["4"], "cmd": "ahelper.set_component_mask('MAP')"},
+    {"name": "mask_object", "key": ["5"], "cmd": "ahelper.set_object_mask()"},
+
+    // Selection Converts
+    {"name": "to_vertex", "key": ["alt+1"], "cmd": "aselect.Convert().to_vertex()"},
+    {"name": "to_edge", "key": ["alt+2"], "cmd": "aselect.Convert().to_edge()"},
+    {"name": "to_face", "key": ["alt+3"], "cmd": "aselect.Convert().to_face()"},
+    {"name": "to_map", "key": ["alt+4"], "cmd": "aselect.Convert().to_map()"},
+
+    {"name": "to_bvertex", "key": ["alt+!"], "cmd": "aselect.Convert(border=True).to_vertex()"},
+    {"name": "to_bedge", "key": ["alt+@"], "cmd": "aselect.Convert(border=True).to_edge()"},
+    {"name": "to_bface", "key": ["alt+#"], "cmd": "aselect.Convert(border=True).to_face()"},
+    {"name": "to_bmap", "key": ["alt+$"], "cmd": "aselect.Convert(border=True).to_map()"},
+
+    // Selection Helpers
+    {"name": "to_pattern_next", "key": ["ctrl+alt+up"], "cmd": "aselect.pattern_next()"},
+    {"name": "to_pattern_previous", "key": ["ctrl+alt+down"], "cmd": "aselect.pattern_previous()"},
+    {"name": "to_deselect_all", "key": ["Q"], "cmd": "aselect.clear()"},
+
+    // Camera Controls
+    {"name": "cam_viewport_snap", "key": ["F"], "cmd": "acamera.viewport_snap()"},
+    {"name": "cam_fit_to_last", "key": ["ctrl+alt+f"], "cmd": "acamera.Camera().fit_selection()"},
+
+    // SubD Toggles
+    {"name": "subd_toggle", "key": ["F1"], "cmd": "atoggleSubD.toggle(True)"},
+    {"name": "subd_all_off", "key": ["ctrl", "F1"], "cmd": "atoggleSubD.all_off()"},
+    {"name": "subd_add_level", "key": ["ctrl", "+"], "cmd": "atoggleSubD.add_level()"},
+    {"name": "subd_sub_level", "key": ["ctrl", "-"], "cmd": "atoggleSubD.sub_level()"},
+
+    // Scripts
+    {"name": "tool_extrude", "key": ["alt", "e"], "cmd": "atoolsModel.extrude()"},
+    {"name": "tool_bridge", "key": ["ctrl", "b"], "cmd": "atoolsModel.bridge()"},
+    {"name": "tool_renamer", "key": ["F2"], "cmd": "arenamer.Renamer().run()"},
+
+    // Window Toggles
+    {"name": "window_outliner", "key": ["6"], "cmd": "atoggleWindows.outliner()"},
+    {"name": "window_hypershader", "key": ["7"], "cmd": "atoggleWindows.hypershader()"},
+    {"name": "window_scripteditor", "key": ["8"], "cmd": "atoggleWindows.scripteditor()"},
+    {"name": "window_renderview", "key": ["9"], "cmd": "atoggleWindows.renderview()"},
+
+    // Pie Menus
+    {"name": "pm_delete", "key": ["alt", "d"], "cmd": "apiemenus.delete_pie()"},
+    {"name": "pm_select", "key": ["alt", "q"], "cmd": "apiemenus.select_pie()"},
+    {"name": "pm_model", "key": ["W"], "cmd": "apiemenus.model_pie()"},
+    {"name": "pm_pivot", "key": ["A"], "cmd": "apiemenus.pivot_pie()"},
+    {"name": "pm_alignuv", "key": ["alt", "a"], "cmd": "apiemenus.align_uv()"},
+    {"name": "pm_uv", "key": ["X"], "cmd": "apiemenus.uv_pie()"},
+    {"name": "pm_polymirror", "key": ["ctrl", "E"], "cmd": "apiemenus.poly_mirror_pie()"},
+    {"name": "pm_polyobject", "key": ["E"], "cmd": "apiemenus.duplicate_detach_pie()"},
+    {"name": "pm_camera", "key": ["ctrl", "F"], "cmd": "apiemenus.camera_pie()"},
+    {"name": "pm_display", "key": ["alt", "w"], "cmd": "apiemenus.display_pie()"}
+]
