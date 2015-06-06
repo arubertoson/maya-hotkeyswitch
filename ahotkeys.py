@@ -1,29 +1,77 @@
-"""
-    ahotkey.py
-    author: Marcus Albertsson
-
-    Small utility for setting up hotkey sets and easily switch between them
-    during a maya session.
-"""
+#! python
 import os
-import logging
-import ConfigParser
+import json
+
+from json_minify import json_minify
 
 import pymel.core as pymel
+import pymel.util.path as Path
+from pymel.core.language import optionVar
 
-logging.basicConfig(level=logging.DEBUG)
-CURRENT_FILE_PATH = os.path.abspath(os.path.dirname(__file__))
+STARTUP_KEY_SET = 'model'
+ahotkey_optionvar = 'ahotkey_current_key_set'
+CWD = Path(__file__).dirname().expand()
+CONFIG_PATHS = [CWD, Path(CWD.parent).joinpath('config')]
 
 
-class HotkeyMenu(object):
+if ahotkey_optionvar not in optionVar:
+    optionVar[ahotkey_optionvar] = STARTUP_KEY_SET
 
+
+class Hotkey(object):
+
+    def __init__(self, name, key, cmd):
+        self.name = name
+        self.key = list(key)
+        self.key_args = self.__get_key_kwargs(key)
+        self.cmd = self.__get_string_cmd(cmd)
+
+    def __get_string_cmd(self, cmd):
+        module = cmd.split('.')[0]
+        return 'import {0}; {1}'.format(module, cmd)
+
+    def __get_key_kwargs(self, key):
+        kwargs, key_list = {}, key
+        kwargs['name'] = self.name
+
+        if 'alt' in key_list:
+            kwargs['alt'] = True
+            key_list.remove('alt')
+
+        if 'ctrl' in key_list:
+            kwargs['ctl'] = True
+            key_list.remove('ctrl')
+
+        kwargs['k'] = key_list.pop()
+        return kwargs
+
+
+class MayaHotkey(object):
+
+    MAP = {}
+    ACTIVE = ''
     ARUDO_MENU_NAME = 'arudoMenu'
     HOTKEY_MENU_NAME = 'arudoHotkeyMenu'
 
-    def __init__(self):
-        self.mayaMenu()
+    def __init__(self, category=None, script_type=None):
+        self.category = category or 'arudo'
+        self.script_type = script_type or 'python'
+        self.update()
+        self._initUI()
+        self.map(optionVar[ahotkey_optionvar])
 
-    def mayaMenu(self):
+    def __getitem__(self, key):
+        return self.MAP[key]
+
+    def __iter__(self):
+        return iter(self.MAP)
+
+    def _add_menu_items(self):
+        for item in self:
+            pymel.menuItem(l=item.title(), c=lambda x: self.map(item))
+            pymel.menuItem(ob=True, c=lambda x: self.edit(item))
+
+    def _initUI(self):
         if not pymel.menu(self.ARUDO_MENU_NAME, exists=True):
             pymel.menu(
                 self.ARUDO_MENU_NAME,
@@ -32,138 +80,92 @@ class HotkeyMenu(object):
             )
 
         if pymel.menu(self.HOTKEY_MENU_NAME, exists=True):
-            pymel.deleteUI(self.HOTKEY_MENU_NAME)
+            pymel.deleteUI(self.HOTKEY_MENU_NAME, menuItem=True)
 
-        pymel.menuItem(
+        with pymel.menuItem(
             self.HOTKEY_MENU_NAME,
             label='Hotkey Set',
             subMenu=True,
+            allowOptionBoxes=True,
             parent=self.ARUDO_MENU_NAME,
+        ):
+            pymel.menuItem(l='Maya Default', c=lambda x: self.factory())
+            pymel.menuItem(divider=True)
+            self._add_menu_items()
+            pymel.menuItem(divider=True)
+            pymel.menuItem(l='Update', c=lambda x: self.update())
+            pymel.menuItem(l='Print Current', c=lambda x: self.output())
+
+    def _get_json_string(self, hfile):
+        with open(str(hfile), 'r') as f:
+            json_string = json_minify(''.join(f.readlines()))
+            json_data = json.loads(json_string)
+        return json_data
+
+    def _get_hfiles(self):
+        hfiles = {}
+        for p in CONFIG_PATHS:
+            for f in p.files():
+                if not f.ext == '.hotkey':
+                    continue
+                hfiles[f.namebase] = f
+        return hfiles
+
+    def _parse(self):
+        self.MAP = {}
+        for name, f in self.hfiles.iteritems():
+            json_data = self._get_json_string(f)
+            self.MAP[name] = [Hotkey(**key_map) for key_map in json_data]
+
+    def _runtime_command(self, key):
+        pymel.runTimeCommand(
+            key.name,
+            annotation=key.name,
+            command=key.cmd,
+            category=self.category,
+            commandLanguage=self.script_type,
+            default=True,
         )
-        pymel.menuItem(
-            label='maya default',
-            command=lambda x: factory_hotkeys(),
-            parent=self.HOTKEY_MENU_NAME,
+
+    def _name_command(self, key):
+        pymel.nameCommand(
+            key.name,
+            ann=key.name,
+            c=key.name,
+            default=True,
+            sourceType=self.script_type,
         )
 
-    def add_menu_hotkey_sets(self, section_name, hotkey_set):
-        pymel.menuItem(
-            label=section_name,
-            command=lambda x: map_hotkeys(hotkey_set),
-            parent=self.HOTKEY_MENU_NAME,
-        )
+    def cmd_exists(self, name):
+        return pymel.runTimeCommand(name, q=True, exists=True)
 
+    def output(self):
+        if not self.ACTIVE:
+            print('Maya Default')
+            return
+        for key in self[self.ACTIVE]:
+            name = '{0: >24}'.format(key.name)
+            key_stroke = '{0: >18}'.format('+'.join(key.key))
+            print('{0} :: {1} :: {2}'.format(name, key_stroke, key.cmd))
 
-class HotkeyParser(object):
-
-    CONFIG_FILE = os.path.join(CURRENT_FILE_PATH, 'hotkeys.cfg')
-
-    def __init__(self):
-        self.config = ConfigParser.ConfigParser()
-        self.config.read(self.CONFIG_FILE)
-        self.hotkey_maps = {}
-        self.option_map()
-
-    def section_map(self, section):
-        hotkey_dict = {}
-        options = self.config.options(section)
-        for option in options:
-            hotkey_dict[option] = self.config.get(section, option).split(',')
-
-        return hotkey_dict
-
-    def option_map(self):
-        sections = self.config.sections()
-        for section in sections:
-            self.hotkey_maps[section] = self.section_map(section)
+    def edit(self, key_map):
+        os.system('{0}'.format(self.hfiles[key_map]))
 
     def update(self):
-        self.option_map()
+        self.hfiles = self._get_hfiles()
+        self._parse()
+        self._initUI()
 
-    def get_hotkeys(self):
-        return self.hotkey_maps
+    def factory(self):
+        self.ACTIVE = optionVar[ahotkey_optionvar] = ''
+        pymel.hotkey(factorySettings=True)
 
-    def get_section(self, section):
-        return self.hotkey_maps[section]
+    def map(self, key_set, category='arudo'):
+        self.ACTIVE = optionVar[ahotkey_optionvar] = key_set
+        for key in self[key_set]:
 
+            if not self.cmd_exists(key.name):
+                self._runtime_command(key)
 
-class HotkeyMapper(object):
-
-    SCRIPT_TYPE = 'python'
-
-    def __init__(self, hotkey_commands, category=None):
-        self.category = category or 'arudo'
-        self.command_key_map = hotkey_commands
-        self.hotkey_kwargs = {}
-
-    def perform_map_hotkeys(self):
-        for hotkey, name_command in self.command_key_map.iteritems():
-
-            log_msg = '{0: <14} :: {1}'.format(hotkey, ':'.join(name_command))
-            logging.debug(log_msg)
-
-            self.hotkey = hotkey
-            self.name, self.command = name_command
-            self.string_command = self.get_func_string_call()
-
-            if not pymel.runTimeCommand(self.name, q=True, exists=True):
-                self.create_runtime_command()
-
-            self.create_name_command()
-            self.set_hotkeys()
-
-    def get_func_string_call(self):
-        module = self.command.split('.')[0]
-        return 'import {0}; {1}'.format(module, self.command)
-
-    def create_runtime_command(self):
-        runTime_kwargs = {
-            'annotation': self.name,
-            'command': self.string_command,
-            'category': self.category,
-            'commandLanguage': self.SCRIPT_TYPE,
-            'default': True,
-        }
-        pymel.runTimeCommand(self.name, **runTime_kwargs)
-
-    def create_name_command(self):
-        pymel.nameCommand(
-            self.name,
-            ann=self.name,
-            c=self.name,
-            default=True,
-            sourceType=self.SCRIPT_TYPE,
-        )
-
-    def set_hotkeys(self):
-        hotkey = self.hotkey
-        hotkey_kwargs = {}
-
-        if 'alt' in hotkey:
-            hotkey = hotkey.replace('alt+', '')
-            hotkey_kwargs['alt'] = True
-        if 'ctrl' in hotkey:
-            hotkey = hotkey.replace('ctrl+', '')
-            hotkey_kwargs['ctl'] = True
-
-        hotkey_kwargs['name'] = self.name
-        pymel.hotkey(k=hotkey, **hotkey_kwargs)
-
-
-def map_hotkeys(hotkey_section, category='arudo'):
-    factory_hotkeys()
-    HotkeyMapper(hotkey_section, category).perform_map_hotkeys()
-
-
-def factory_hotkeys():
-    pymel.hotkey(factorySettings=True)
-
-
-def setup_arudo_hotkeys():
-    hotkey_cfg = HotkeyParser()
-    hotkey_cfg.update()
-    hotkey_maps = hotkey_cfg.get_hotkeys()
-
-    hotkey_menu = HotkeyMenu()
-    for each in hotkey_maps.keys():
-        hotkey_menu.add_menu_hotkey_sets(each, hotkey_maps[each])
+            self._name_command(key)
+            pymel.hotkey(**key.key_args)
