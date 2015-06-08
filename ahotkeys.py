@@ -105,6 +105,8 @@ class MayaHotkey(object):
     def _get_hfiles(self):
         hfiles = {}
         for p in CONFIG_PATHS:
+            if not p.exists():
+                continue
             for f in p.files():
                 if not f.ext == '.hotkey':
                     continue
