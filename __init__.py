@@ -2,6 +2,8 @@
 
 """ Hotkey swapper for maya. """
 
-from ahotkeys import *
+from hotkeyswitch import *
 
 __version__ = '0.1.3'
+
+MayaHotkey()
