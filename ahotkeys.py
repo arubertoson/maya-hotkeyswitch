@@ -1,4 +1,4 @@
-#! python
+#! python2
 import os
 import json
 
@@ -8,14 +8,15 @@ import pymel.core as pymel
 import pymel.util.path as Path
 from pymel.core.language import optionVar
 
+
 STARTUP_KEY_SET = 'model'
-ahotkey_optionvar = 'ahotkey_current_key_set'
+OPTIONVAR = 'ahotkey_current_key_set'
 CWD = Path(__file__).dirname().expand()
 CONFIG_PATHS = [CWD, Path(CWD.parent).joinpath('config')]
 
 
-if ahotkey_optionvar not in optionVar:
-    optionVar[ahotkey_optionvar] = STARTUP_KEY_SET
+if OPTIONVAR not in optionVar:
+    optionVar[OPTIONVAR] = STARTUP_KEY_SET
 
 
 class Hotkey(object):
@@ -58,7 +59,7 @@ class MayaHotkey(object):
         self.script_type = script_type or 'python'
         self.update()
         self._initUI()
-        self.map(optionVar[ahotkey_optionvar])
+        self.map(optionVar[OPTIONVAR])
 
     def __getitem__(self, key):
         return self.MAP[key]
@@ -159,11 +160,11 @@ class MayaHotkey(object):
         self._initUI()
 
     def factory(self):
-        self.ACTIVE = optionVar[ahotkey_optionvar] = ''
+        self.ACTIVE = optionVar[OPTIONVAR] = ''
         pymel.hotkey(factorySettings=True)
 
     def map(self, key_set, category='arudo'):
-        self.ACTIVE = optionVar[ahotkey_optionvar] = key_set
+        self.ACTIVE = optionVar[OPTIONVAR] = key_set
         for key in self[key_set]:
 
             if not self.cmd_exists(key.name):
