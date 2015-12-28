@@ -97,6 +97,8 @@ class Hotkey(object):
 
     def parse_cmd(self, cmd):
         """Pars command string for maya hotkey."""
+        if 'import' in cmd:
+            return cmd
         module = cmd.split('.')[0]
         return 'import {0}; {1}'.format(module, cmd)
 
