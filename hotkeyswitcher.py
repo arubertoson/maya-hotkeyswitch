@@ -1,28 +1,54 @@
 """
+This script makes it easier to keep track of hotkeys between maya versions,
+also making it possible to edit outside of maya and without the (in my
+opinion) terrible hotkey interface.
+
+No need to hunt down named commands and hotkeyfiles when going up and down
+in Maya versions.
+
+Put the script inside a valid PYTHONPATH directory and fire the below in
+maya.
+
+Usage::
+
+    >>> import hotkeyswitcher
+    >>> hotkeyswitcher.run()
 """
 import os
 import re
 import json
-import string
 
 import maya.cmds as cmds
+import maya.mel as mel
 
-# Regular expression for comments
+
+__title__ = 'hotkeyswitcher'
+__version__ = '0.1'
+__author__ = 'Marcus Albertsson'
+__email__ = 'marcus.arubertoson@gmail.com'
+__url__ = 'http://github.com/arubertoson/maya-hotkeyswitcher'
+__license__ = 'MIT'
+__copyright__ = 'Copyright 2015 Marcus Albertsson'
+
+
+# Menu Constants
+MENU_NAME = 'arudo_menu'
+HOTKEY_MENU_NAME = 'arudoHotkeyMenu'
+HOTKEY_CATEGORY = 'arudo'
+SCRIPT_TYPE = 'python'
+OPTVAR = 'mhotkeyswitcher_crnt_set'
+
+
+# Paths
+CWD = os.path.abspath(os.path.dirname(__file__))
+CONFIG_PATHS = [CWD]
+
+
+# Regular expression for comments in json files
 comment_re = re.compile(
     '(^)?[^\S\n]*/(?:\*(.*?)\*/[^\S\n]*|/[^\n]*)($)?',
     re.DOTALL | re.MULTILINE
     )
-
-# Menu Constants
-MENU_NAME = 'arudo_menu'
-HOTKEY_CATEGORY = 'arudo'
-SCRIPT_TYPE = 'python'
-
-OPTVAR = 'mhotkeyswitcher_crnt_set'
-
-# Paths
-CWD = None
-CONFIG_PATHS = None
 
 
 def parse_json(filename):
@@ -41,26 +67,20 @@ def parse_json(filename):
 
 
 def get_hotkey_files(paths=CONFIG_PATHS):
+    """Collect hotkey config files from given config paths."""
     hfiles = {}
     for p in paths:
-        if not p.exists():
+        if not os.path.exists(p):
             continue
-        for f in p.files():
-            if not f.ext == '.hotkey':
+        for f in os.listdir(p):
+            if not f.endswith('.hotkey'):
                 continue
-            hfiles[f.namebase] = f
+            hfiles[os.path.splitext(f)[0]] = os.path.join(p, f)
     return hfiles
 
 
 def cmd_exists(name):
     return cmds.runTimeCommand(name, q=True, exists=True)
-
-
-def run():
-    if HotkeySwitch.instance is None:
-        HotkeySwitch.instance = HotkeySwitch()
-
-        create_ui()
 
 
 class Hotkey(object):
@@ -111,12 +131,48 @@ class HotkeySwitch(object):
         self.category = category or HOTKEY_CATEGORY
         self.script_type = script_type or SCRIPT_TYPE
         self.hotkey_files = get_hotkey_files()
+        self.parse_hotkeys()
+
+    def __repr__(self):
+        return 'HotkeySwitch({})'.format(list(self.hotkey_map))
 
     def __getitem__(self, key):
-        return self.HOTKEY_MAP[key]
+        return self.hotkey_map[key]
 
     def __iter__(self):
-        return iter(self.HOTKEY_MAP)
+        return iter(self.hotkey_map)
+
+    def _add_menu_items(self):
+        for item in self.hotkey_map:
+            cmds.menuItem(l=item.title(), c=lambda x: self.set_hotkeys(item))
+            cmds.menuItem(ob=True, c=lambda x: self.edit(item))
+
+    def initUI(self):
+        """Creates the interface."""
+        if not cmds.menu(MENU_NAME, exists=True):
+            cmds.menu(
+                MENU_NAME,
+                label='Arudo',
+                parent=mel.eval('$htkeyswitch = $gMainWindow'),
+            )
+
+        if cmds.menu(HOTKEY_MENU_NAME, exists=True):
+            cmds.deleteUI(HOTKEY_MENU_NAME, menuItem=True)
+
+        cmds.menuItem(
+            HOTKEY_MENU_NAME,
+            label='Hotkey Set',
+            subMenu=True,
+            allowOptionBoxes=True,
+            insertAfter='',
+            parent=MENU_NAME,
+            )
+        cmds.menuItem(l='Maya Default', c=lambda x: self.set_factory())
+        cmds.menuItem(divider=True)
+        self._add_menu_items()
+        cmds.menuItem(divider=True)
+        cmds.menuItem(l='Update', c=lambda x: self.update())
+        cmds.menuItem(l='Print Current', c=lambda x: self.output())
 
     def create_runtime_cmd(self, key):
         cmds.runTimeCommand(
@@ -140,16 +196,67 @@ class HotkeySwitch(object):
     def parse_hotkeys(self):
         """Parse existing hotkey files and create hotkey map."""
         for name, f in self.hotkey_files.iteritems():
-            json_data = self.parse_json(f)
+            json_data = parse_json(f)
             self.hotkey_map[name] = [Hotkey(**key_map)
                                      for key_map in json_data]
 
+    def edit(self, key_map):
+        """Open file in default text editor."""
+        os.system('{0}'.format(self.hotkey_files[key_map]))
+
     def set_factory(self):
+        """Set hotkeys back to Maya factory."""
         self.active = ''
         cmds.hotkey(factorySettings=True)
 
+    def set_hotkeys(self, key_set, category=HOTKEY_CATEGORY):
+        """Set hotkeys to given key set under given category."""
+        self.active = key_set
+        cmds.optionVar(sv=(OPTVAR, key_set))
+        for key in self.hotkey_map[key_set]:
+            if not cmd_exists(key.name):
+                self.create_runtime_cmd(key)
+            self.create_name_cmd(key)
+            cmds.hotkey(**key.key_args)
+
     def update(self):
+        """Update hotkeymaps.
+
+        Will find new hotkey setting files, or update current ones with
+        changes.
+        """
         self.hotkey_map = {}
         self.hotkey_files = get_hotkey_files()
-        self.
+        self.parse_hotkeys()
+        if self.active:
+            cmds.hotkey(factorySettings=True)
+            self.set_hotkeys(self.active)
+        self.initUI()
 
+    def output(self):
+        """Outputs current hotkey bindings to script editor in readable format.
+        """
+        if not self.active:
+            print('Maya Default')
+            return
+        for key in self.hotkey_map[self.active]:
+            name = '{0: >24}'.format(key.name)
+            key_stroke = '{0: >18}'.format('+'.join(key.key))
+            print('{0} :: {1} :: {2}'.format(name, key_stroke, key.cmd))
+
+
+def run():
+    if HotkeySwitch.instance is None:
+        HotkeySwitch.instance = HotkeySwitch()
+
+    if not cmds.optionVar(exists=OPTVAR):
+        cmds.optionVar(sv=(OPTVAR, ''))
+
+    if cmds.optionVar(q=OPTVAR):
+        HotkeySwitch.instance.set_hotkeys(cmds.optionVar(q=OPTVAR))
+
+    HotkeySwitch.instance.initUI()
+
+
+if __name__ == '__main__':
+    run()
