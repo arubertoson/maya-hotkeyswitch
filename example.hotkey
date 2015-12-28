@@ -1,4 +1,4 @@
-{
+[
     /*
     Create the hotkey with the given arguments: "name", "key", "cmd".
     Remember to follow the formating as one little error, a forgotten ""
@@ -9,4 +9,4 @@
 
     // Remember the last hotkey must not have a "," behind it!
     {"name": "mask_vertex", "key": ["alt", "C"], "cmd": "script.main()"}
-}
+]
