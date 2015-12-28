@@ -1,0 +1,12 @@
+{
+    /*
+    Create the hotkey with the given arguments: "name", "key", "cmd".
+    Remember to follow the formating as one little error, a forgotten ""
+    or a missing "," might make the whole script unreadable.
+    */
+    {"name": "mask_vertex", "key": ["ctrl", "alt", "c"], "cmd": "import testy; testy.run()"},
+    {"name": "mask_vertex", "key": ["alt", "C"], "cmd": "testy.run()"},
+
+    // Remember the last hotkey must not have a "," behind it!
+    {"name": "mask_vertex", "key": ["alt", "C"], "cmd": "script.main()"}
+}
