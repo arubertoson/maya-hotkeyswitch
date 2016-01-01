@@ -17,6 +17,7 @@ Usage::
 import os
 import re
 import json
+from functools import partial
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -89,11 +90,14 @@ class Hotkey(object):
     maya.
     """
 
-    def __init__(self, name, key, cmd):
-        self.name = name
+    def __init__(self, filename, name, key, cmd):
+        self.name = '{}_{}'.format(filename, name)
         self.key = list(key)
         self.key_args = self.parse_hotkey(key)
         self.cmd = self.parse_cmd(cmd)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.name)
 
     def parse_cmd(self, cmd):
         """Pars command string for maya hotkey."""
@@ -146,8 +150,8 @@ class HotkeySwitch(object):
 
     def _add_menu_items(self):
         for item in self.hotkey_map:
-            cmds.menuItem(l=item.title(), c=lambda x: self.set_hotkeys(item))
-            cmds.menuItem(ob=True, c=lambda x: self.edit(item))
+            cmds.menuItem(l=item.title(), c=partial(self.set_hotkeys, item))
+            cmds.menuItem(ob=True, c=partial(self.edit, item))
 
     def initUI(self):
         """Creates the interface."""
@@ -169,12 +173,16 @@ class HotkeySwitch(object):
             insertAfter='',
             parent=MENU_NAME,
             )
-        cmds.menuItem(l='Maya Default', c=lambda x: self.set_factory())
+        cmds.menuItem(l='Maya Default', c=lambda *args: self.set_factory())
         cmds.menuItem(divider=True)
         self._add_menu_items()
         cmds.menuItem(divider=True)
-        cmds.menuItem(l='Update', c=lambda x: self.update())
-        cmds.menuItem(l='Print Current', c=lambda x: self.output())
+        cmds.menuItem(l='Update', c=lambda *args: self.update())
+        cmds.menuItem(l='Print Current', c=lambda *args: self.output())
+
+    def edit(self, key_map, *args):
+        """Open file in default text editor."""
+        os.system('{0}'.format(self.hotkey_files[key_map]))
 
     def create_runtime_cmd(self, key):
         cmds.runTimeCommand(
@@ -183,7 +191,7 @@ class HotkeySwitch(object):
             command=key.cmd,
             category=self.category,
             commandLanguage=self.script_type,
-            default=True,
+            # default=True,
         )
 
     def create_name_cmd(self, key):
@@ -191,7 +199,7 @@ class HotkeySwitch(object):
             key.name,
             ann=key.name,
             c=key.name,
-            default=True,
+            # default=True,
             sourceType=self.script_type,
         )
 
@@ -199,19 +207,15 @@ class HotkeySwitch(object):
         """Parse existing hotkey files and create hotkey map."""
         for name, f in self.hotkey_files.iteritems():
             json_data = parse_json(f)
-            self.hotkey_map[name] = [Hotkey(**key_map)
+            self.hotkey_map[name] = [Hotkey(name, **key_map)
                                      for key_map in json_data]
-
-    def edit(self, key_map):
-        """Open file in default text editor."""
-        os.system('{0}'.format(self.hotkey_files[key_map]))
 
     def set_factory(self):
         """Set hotkeys back to Maya factory."""
         self.active = ''
         cmds.hotkey(factorySettings=True)
 
-    def set_hotkeys(self, key_set, category=HOTKEY_CATEGORY):
+    def set_hotkeys(self, key_set, category=HOTKEY_CATEGORY, *args):
         """Set hotkeys to given key set under given category."""
         self.active = key_set
         cmds.optionVar(sv=(OPTVAR, key_set))
@@ -222,12 +226,13 @@ class HotkeySwitch(object):
             cmds.hotkey(**key.key_args)
 
     def update(self):
-        """Update hotkeymaps.
+        """
+        Update hotkeymaps.
 
         Will find new hotkey setting files, or update current ones with
         changes.
         """
-        self.hotkey_map = {}
+        self.clean_hotkeys()
         self.hotkey_files = get_hotkey_files()
         self.parse_hotkeys()
         if self.active:
@@ -235,19 +240,34 @@ class HotkeySwitch(object):
             self.set_hotkeys(self.active)
         self.initUI()
 
+    def clean_hotkeys(self):
+        """
+        Removes existing hotkey runTimeCommands and empties hotkey map
+        dictionary.
+        """
+        for m, hotkeys in self.hotkey_map.iteritems():
+            for i in hotkeys:
+                if cmd_exists(i.name):
+                    cmds.runTimeCommand(i.name, e=True, delete=True)
+        self.hotkey_map = {}
+
     def output(self):
-        """Outputs current hotkey bindings to script editor in readable format.
+        """
+        Outputs current hotkey bindings to script editor in readable format.
         """
         if not self.active:
             print('Maya Default')
             return
         for key in self.hotkey_map[self.active]:
-            name = '{0: >24}'.format(key.name)
+            name = '{0: >32}'.format(key.name)
             key_stroke = '{0: >18}'.format('+'.join(key.key))
             print('{0} :: {1} :: {2}'.format(name, key_stroke, key.cmd))
 
 
-def run():
+def init(clean_prefs=True):
+    """
+    Used to start hotkeyswitcher
+    """
     if HotkeySwitch.instance is None:
         HotkeySwitch.instance = HotkeySwitch()
 
@@ -259,6 +279,10 @@ def run():
 
     HotkeySwitch.instance.initUI()
 
+    # Don't know if this will ever be wanted.
+    # if clean_prefs:
+        # cmds.scriptJob(event=['quitApplication', remove_hotkey_commands])
+
 
 if __name__ == '__main__':
-    run()
+    init()
