@@ -1,3 +1,8 @@
+As of now this repo is a bit redundant, everything works fine and if you want to use the
+hotkeyswitcher without utilizing other preference options the by all means go ahead.
+
+More functionality can be found in maya-mamprefs.
+
 Hotkey utility for Autodesk Maya
 ================================
 
